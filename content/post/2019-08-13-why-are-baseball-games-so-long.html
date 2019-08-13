@@ -1,0 +1,141 @@
+---
+title: Why Are Baseball Games So Long?
+author: Simon Heitin
+date: '2019-08-13'
+categories:
+  - R
+tags:
+  - baseball
+  - islr
+  - R Markdown
+  - regression
+slug: why-are-baseball-games-so-long
+---
+
+
+
+<p>I like baseball. It’s a game of high skill and high drama - when you really watch it. Highlights of slick double plays and towering home runs are fun to watch, but if you just watch the highlights you lose the sense of just how rare and special those events are. The problem (my problem) is that I just don’t have enough time to watch baseball. But, does anybody really? The median game-length in 2016 was ~175 minutes. That might be reasonable for a 16 game football season, but the baseball season is 10x as long!</p>
+<p>And, games are getting longer. Why is that? Let’s see if we can find out!</p>
+<p>This analysis uses a dataset from <a href="https://data.world/dataquest/mlb-game-logs">data.world</a> which has summary stats for games from the 19th century through 2016. We will focus on the seasons from 2000 through 2016, during which time a few things happened: * The steroid era faded away * Teams started taking analytics more seriously</p>
+<p>One resource I’m leaning on heavily is <a href="https://www-bcf.usc.edu/~gareth/ISL/ISLR%20First%20Printing.pdf">“An Introduction to Statistical Learning”</a></p>
+<pre class="r"><code>library(readr)
+library(dplyr)
+library(lubridate)
+library(data.world)
+library(ggplot2)
+
+mlb_ds &lt;- &quot;https://data.world/dataquest/mlb-game-logs&quot;
+
+query &lt;- &quot;SELECT date, h_name, v_name, length_minutes, length_outs, h_pitchers_used, v_pitchers_used, h_league, v_league, v_walks, h_walks, v_strikeouts, h_strikeouts, v_stolen_bases, h_stolen_bases, v_caught_stealing, h_caught_stealing from game_logs where date &gt; &#39;2000-01-01&#39;&quot;
+
+test_q &lt;- data.world::qry_sql(query)
+
+q_result &lt;- data.world::query(test_q, dataset = mlb_ds) 
+
+yrly &lt;- q_result %&gt;%
+  mutate(year = year(date)) %&gt;%
+  filter(length_outs &gt;= 51) %&gt;% # drop any games that were less than 8.5 innings
+  mutate(min_per_out = length_minutes/length_outs,
+         weird_num_outs = length_outs %% 3,
+         per_9_inn = length_outs / 54, # normalize for 9 inning game 
+         half_innings = length_outs/3,
+         min_per_9_inn = length_minutes / per_9_inn,
+         total_pitchers_used = h_pitchers_used + v_pitchers_used,
+         pitcher_changes_per_9_inn = (total_pitchers_used - 2) / per_9_inn,
+         k_per_9 = (v_strikeouts + h_strikeouts) / per_9_inn,
+         bb_per_9 = (v_walks + h_walks) / per_9_inn,
+         steal_attempt_per_9 = (v_stolen_bases + h_stolen_bases + v_caught_stealing + h_caught_stealing) / per_9_inn) # normalize for number of half innings</code></pre>
+<div id="are-games-getting-even-longer" class="section level1">
+<h1>Are Games Getting Even Longer?</h1>
+<p>Are games getting longer? Is there an overall trend? We will look by number of half-innings in the game because we’ll assume that the amount of time to switch sides is significant. Just counting the number of outs would obscure that.</p>
+<p>We will scale each game to get its 9-inning game pace.</p>
+<pre class="r"><code>yrly_summary &lt;- yrly %&gt;%
+  filter(weird_num_outs == 0) %&gt;%
+  group_by(year) %&gt;%
+  summarize(mean_min_per_9_inn = mean(min_per_9_inn),
+            mean_pitcher_changes_per_9_inn = mean(pitcher_changes_per_9_inn),
+            mean_steal_attempt_per_9 = mean(steal_attempt_per_9),
+            mean_k_per_9 = mean(k_per_9),
+            mean_walks_per_9 = mean(bb_per_9)) 
+
+yrly_summary %&gt;%
+  ggplot(aes(x = year, y = mean_min_per_9_inn)) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;) + 
+  labs(title = &quot;Games are getting longer&quot;)</code></pre>
+<p><img src="/post/2019-08-13-why-are-baseball-games-so-long_files/figure-html/unnamed-chunk-1-1.png" width="672" /></p>
+<p>Let’s look at a few factors individually that I think could be drivers for game length:<br />
+* Number of pitchers used: When pitchers are changed in the middle of an inning, that takes time because the new pitcher has to run allllllll the way in from the bullpen and then throw some warmup pitches while everyone else stands around waiting. When pitching changes happen between half innings, this type of slowdown doesn’t happen. Unfortunately our data does not have the granularity to tell whether a pitching change happened between innings or within an inning. * Number of strikeouts and number of walks: I’m assuming that at-bats that end in a strikeout or a walk generally last longer than at-bats that end with the ball in play because they require at least 3 pitches be thrown and very often more. Walks have the additional penalty that they extend the inning since they do not result in an out being recorded.</p>
+<pre class="r"><code>yrly_summary %&gt;%
+  ggplot(aes(x = year, y = mean_pitcher_changes_per_9_inn)) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;) +
+  labs(title = &quot;There are more pitching changes per game&quot;)</code></pre>
+<p><img src="/post/2019-08-13-why-are-baseball-games-so-long_files/figure-html/unnamed-chunk-2-1.png" width="672" /></p>
+<p>Question: Why did the year 2000 have the lowest number of pitcher changes, but it was 4th in min per 9 innings?</p>
+<pre class="r"><code>yrly_summary %&gt;%
+  ggplot(aes(x = year, y = mean_k_per_9)) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;) +
+  labs(title = &quot;There are more strikeouts per game&quot;)</code></pre>
+<p><img src="/post/2019-08-13-why-are-baseball-games-so-long_files/figure-html/unnamed-chunk-3-1.png" width="672" /></p>
+<pre class="r"><code>yrly_summary %&gt;%
+  ggplot(aes(x = year, y = mean_walks_per_9)) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;) +
+  labs(title = &quot;There are fewer walks per game&quot;)</code></pre>
+<p><img src="/post/2019-08-13-why-are-baseball-games-so-long_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+<pre class="r"><code>yrly_summary %&gt;%
+  ggplot(aes(x = year, y = mean_steal_attempt_per_9)) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;) +
+  labs(title = &quot;Not a clear trend for steals&quot;)</code></pre>
+<p><img src="/post/2019-08-13-why-are-baseball-games-so-long_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+</div>
+<div id="analysis-multiple-linear-regression" class="section level1">
+<h1>Analysis: Multiple Linear Regression</h1>
+<p>Let’s build a linear model to see if it can help us understand why games are getting longer.</p>
+<pre class="r"><code># let&#39;s see what factors are driving the increase in game time
+linear_model &lt;- lm(min_per_9_inn ~ pitcher_changes_per_9_inn + k_per_9 + bb_per_9, data = yrly)
+
+broom::glance(linear_model)</code></pre>
+<pre><code>## # A tibble: 1 x 11
+##   r.squared adj.r.squared sigma statistic p.value    df  logLik    AIC
+##       &lt;dbl&gt;         &lt;dbl&gt; &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt;  &lt;dbl&gt;
+## 1     0.539         0.538  14.6    16016.       0     4 -1.69e5 3.37e5
+## # ... with 3 more variables: BIC &lt;dbl&gt;, deviance &lt;dbl&gt;, df.residual &lt;int&gt;</code></pre>
+<p>The F statistic is very high, so we can be pretty sure that at least one of these variables (pitcher changes, strikeouts, and walks) can explain some of the variation in game length. Yay!</p>
+<p>The adjusted R squared seems a little low.</p>
+<p>Now, are the explanatory variables correlated? The explanatory variables all have correlation coefficients below .5 so it seems safe to keep them all.</p>
+<pre class="r"><code>library(PerformanceAnalytics)
+model_variables &lt;- yrly %&gt;% select(min_per_9_inn, pitcher_changes_per_9_inn, k_per_9, bb_per_9)
+chart.Correlation(model_variables, histogram=TRUE, pch=19)</code></pre>
+<p><img src="/post/2019-08-13-why-are-baseball-games-so-long_files/figure-html/cor-1.png" width="672" /></p>
+<p>Let’s look at the residuals to check some potential problems (see section 3.3.3 of ISLR):<br />
+* Non-Linearity of the response-predictor relationship<br />
+* Correlation of error terms<br />
+* Non-constant variance terms<br />
+* Outliers<br />
+* High-leverage points<br />
+* Collinearity<br />
+I don’t see any outliers, which would be points where the model predicts something very different than what was observed (i.e., absolute value of the residual is high).</p>
+<pre class="r"><code>augment_model &lt;- broom::augment(linear_model, data = yrly)
+
+augment_model %&gt;%
+  ggplot() +
+  geom_point(aes(x = .fitted, y = .resid), alpha = .2)</code></pre>
+<p><img src="/post/2019-08-13-why-are-baseball-games-so-long_files/figure-html/residuals-1.png" width="672" /></p>
+<p>Conclusions: 1) The increase in gametime is related to the increase in strikeouts and pitching changes. We have more work to do to figure out the whole story and would probably need additional datasets.<br />
+2) We had some fun playing with linear models.</p>
+<p>Question: looks like walks are going down year over year, but our model that they are correlated with our response variable at .54. Are those two things consistent?</p>
+<p>Next Step: should we be scaling our data better? Check out the Recipes package.</p>
+<p>And Another Next Step: what if we use a mixed effects model?</p>
+</div>
+<div id="addendum" class="section level1">
+<h1>Addendum</h1>
+<p>So other people are all over this issue. Here is a blog post by Joss Fong on Vox with a data-rich video with some good points <a href="https://www.vox.com/2015/4/1/8321781/baseball-games-long-rules">link</a>. I heard from a friend that there was a study showing that the size and shape of new ballparks was a main driver: there is less foul ground because the new parks try to pack in as many seats as possible, so fewer foul balls are being caught. Fouling off close pitches has become an even more successful and widely used strategy too.</p>
+<pre class="r"><code># how about a mixed effects model where the grouping is done by team?
+# library(lmer4)
+
+#think I have to tidy the data to get for each team - first time through let&#39;s have be the team be the one on offense. Later, we might want to look at which team is on defense too.</code></pre>
+</div>
