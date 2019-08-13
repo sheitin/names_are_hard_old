@@ -17,7 +17,7 @@ ignoreFiles = ["\\.Rmd$", "\\.Rmarkdown$", "_files$", "_cache$"]
     url = "https://github.com/sheitin"
 [[menu.main]]
     name = "Twitter"
-    url = "https://twitter.com/sheitin"
+    url = "https://twitter.com/simonheitin"
 
 [params]
     description = "Simon Heitin's data science blog."
