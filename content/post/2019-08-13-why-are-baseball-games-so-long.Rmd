@@ -80,8 +80,8 @@ yrly_summary %>%
 ```
 
 Let's look at a few factors individually that I think could be drivers for game length:  
-* Number of pitchers used: When pitchers are changed in the middle of an inning, that takes time because the new pitcher has to run allllllll the way in from the bullpen and then throw some warmup pitches while everyone else stands around waiting. When pitching changes happen between half innings, this type of slowdown doesn't happen. Unfortunately our data does not have the granularity to tell whether a pitching change happened between innings or within an inning. 
-* Number of strikeouts and number of walks: I'm assuming that at-bats that end in a strikeout or a walk generally last longer than at-bats that end with the ball in play because they require at least 3 pitches be thrown and very often more. Walks have the additional penalty that they extend the inning since they do not result in an out being recorded.
+*Number of pitchers used: When pitchers are changed in the middle of an inning, that takes time because the new pitcher has to run allllllll the way in from the bullpen and then throw some warmup pitches while everyone else stands around waiting. When pitching changes happen between half innings, this type of slowdown doesn't happen. Unfortunately our data does not have the granularity to tell whether a pitching change happened between innings or within an inning.   
+*Number of strikeouts and number of walks: I'm assuming that at-bats that end in a strikeout or a walk generally last longer than at-bats that end with the ball in play because they require at least 3 pitches be thrown and very often more. Walks have the additional penalty that they extend the inning since they do not result in an out being recorded.
 
 
 ```{r}
